@@ -1,7 +1,9 @@
 (in-package #:sandalphon.lambda-list)
 
 (defclass lambda-list ()
-  ((clauses :initarg :clauses :accessor lambda-list-clauses)))
+  ((clauses :initarg :clauses :accessor lambda-list-clauses)
+   (safety :initarg :safe :accessor lambda-list-safe
+	   :initform nil)))
 
 (defgeneric lambda-list-keywords (lambda-list)
   (:method ((lambda-list lambda-list))

@@ -3,8 +3,13 @@
 ;;;; BINDS
 
 (defun gen-binds (llist &rest forms)
-  (loop with binds = nil
-     with declares = nil
+  (loop with safe = (if (lambda-list-safe llist)
+			(gensym "SAFETY")
+			nil)
+     with binds = (if safe
+		      `((,safe ,(length-check llist (first forms))))
+		      nil)
+     with declares = (if safe `((ignore ,safe)) nil)
      for clause in (lambda-list-clauses llist)
      do (multiple-value-bind (new-binds new-forms new-declares)
 	    (clause-binds clause forms)
@@ -49,10 +54,7 @@
       (values (list* `(,keys ,(first forms)) binds) nforms decls))))
 
 (defun regular-binds (name form)
-  `((,name (typecase ,form
-	     (cons (car ,form))
-	     (null (error "too few arguments"))
-	     (t (error "dotted list"))))))
+  `((,name (car ,form))))
 
 (defmethod multiple-clause-binds ((clause regular-clause) spec forms)
   (values (regular-binds spec (first forms))
@@ -80,10 +82,7 @@
 	   r-decls)))))
 
 (defun optional-binds (var -p default form)
-  `((,-p (typecase ,form
-	   (cons ,form)
-	   (null nil)
-	   (t (error "dotted list"))))
+  `((,-p (if (null ,form) nil ,form))
     (,var (if ,-p (car ,-p) ,default))))
 
 (defmethod multiple-clause-binds ((clause optional-clause) spec forms)
@@ -114,7 +113,7 @@
 (defmethod clause-binds ((clause rest-clause) forms)
   (if (clause-spec clause)
       (values `((,(clause-spec clause) ,(first forms)))
-	      (clause-spec clause)
+	      (list (clause-spec clause) (rest forms))
 	      nil)
       (values nil forms nil)))
 

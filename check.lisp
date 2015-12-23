@@ -52,15 +52,20 @@
 	      (return nil))))
     (t nil)))
 
-(defun length-check-form (lambda-list form)
+(defun length-check (lambda-list form)
   (multiple-value-bind (min max)
       (lambda-list-args-accepted lambda-list)
     (let ((length (gensym "LENGTH")))
       `(let ((,length (hazardous-list-length ,form)))
 	 ,(if max
-	      `(and ,length
-		    (<= ,min ,length ,max))
-	      `(<= ,min ,length))))))
+	      `(cond ((not ,length)
+		      (error "Dotted or circular list"))
+		     ((> ,length ,min)
+		      (error "Too many arguments"))
+		     ((< ,max ,length)
+		      (error "Not enough arguments")))
+	      `(when (> ,min ,length)
+		 (error "Not enough arguments")))))))
 
 (defun lambda-list-args-accepted (lambda-list)
   (loop with min = 0 with max = 0

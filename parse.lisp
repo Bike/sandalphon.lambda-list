@@ -1,7 +1,7 @@
 (in-package #:sandalphon.lambda-list)
 
-(defun parse-lambda-list (lambda-list grammar-spec)
-  "Given a lambda list, and a grammar specification, returns a LAMBDA-LIST object.
+(defun parse-lambda-list (lambda-list grammar-spec &key safe)
+  "Given a lambda list, initargs for it, and a grammar specification, returns a LAMBDA-LIST object.
 A grammar specification is a list of clause specifications. A clause specification is either a class specifier, or a list (class-specifier &key).
 The grammar specification is simply based on clauses earlier in the list having to occur before clauses later in the list. All clauses are considered optional. 
 The keys and values in the list are passed unevaluated to MAKE-INSTANCE.
@@ -9,8 +9,11 @@ Certain keys have special meanings to the grammar itself. These are removed befo
 * :DATA-DESTRUCTURE indicates that a dotted list indicates this kind of clause. E.g., in parsing (foo bar . baz), if there was a &rest clause in the grammar with :DATA-DESTRUCTURE, the result would be the same as from (foo bar &rest baz).
 * :ANYWHERE indicates that the position of this clause in the grammar is unimportant, and that this clause can be anywhere in the lambda list, except, for bad reasons, before the first clause. This is used for &environment clauses, which cannot be before &whole.
 
+The keys are arguments to the lambda-list creation that are not part of the grammar. Presently the only one is SAFE, controlling whether extra code is inserted to ensure conforming code and more helpful error messages.
+
 EXAMPLE: A lambda-list like an ordinary lambda-list but with keys having :no-value as a default if no default is explicitly given would have the grammar specification (REGULAR-CLAUSE OPTIONAL-CLAUSE REST-CLAUSE (KEY-CLAUSE :DEFAULT-DEFAULT :NO-VALUE) AUX-CLAUSE)."
-  (%parse-lambda-list lambda-list (make-grammar grammar-spec)))
+  (%parse-lambda-list lambda-list (make-grammar grammar-spec)
+		      :safe safe))
 
 (defgeneric clause-parse (clause list lambda-list)
   (:documentation "Parse an entire clause. Side-effect the results into CLAUSE, and return a list with the clause consumed. For example, given (&whole foo bar baz), the &whole clause parser would return (bar baz)."))
@@ -59,11 +62,13 @@ Specials are presently :DATA-DESTRUCTURE, :ANYWHERE."
 		 (setf blank t)))
 	   (list (clause-keywords obj) obj kws)))))
 
-(defun %parse-lambda-list (llist grammar)
+(defun %parse-lambda-list (llist grammar &rest initargs &key safe)
+  (declare (ignore safe))
   ;; grammar format = list of (ll-keywords object keywords)
   ;; keywords right now being :anywhere and :data-destructure
-  (loop with ret = (make-instance 'lambda-list
-				  :clauses (mapcar #'second grammar))
+  (loop with ret = (apply #'make-instance 'lambda-list
+			  :clauses (mapcar #'second grammar)
+			  initargs)
      with last = nil
      with been-anywhere = nil
      with working = llist

@@ -3,7 +3,7 @@
 (defclass lambda-list ()
   ((clauses :initarg :clauses :accessor lambda-list-clauses)
    (safety :initarg :safe :accessor lambda-list-safe
-	   :initform nil)))
+	   :initform t)))
 
 (defgeneric lambda-list-keywords (lambda-list)
   (:method ((lambda-list lambda-list))
@@ -11,7 +11,8 @@
        appending (clause-keywords clause))))
 
 (defclass clause ()
-  ((keywords :initarg :keywords :accessor clause-keywords)))
+  ((keywords :initarg :keywords :accessor clause-keywords)
+   (safety :initarg :safe :accessor clause-safe :initform t)))
 
 (defclass singleton-clause (clause)
   ((spec :initarg :spec :accessor clause-spec

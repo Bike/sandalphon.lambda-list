@@ -47,11 +47,23 @@
      finally (return (values binds forms declares))))
 
 (defmethod clause-binds ((clause key-clause) forms)
-  (let ((keys (gensym "KEYS")))
+  (let ((keys (gensym "KEYS"))
+	(safety (if (clause-safe clause) (gensym "VERIFY") nil)))
     ;; c-n-m does multiple-clause
     (multiple-value-bind (binds nforms decls)
 	(call-next-method clause (cons keys (rest forms)))
-      (values (list* `(,keys ,(first forms)) binds) nforms decls))))
+      (values
+       (append `((,keys ,(first forms)))
+	       (if safety
+		   `((,safety (verify-keys
+			       ,keys
+			       ',(mapcar #'caar
+					 (multiple-clause-specs clause))
+			       ',(key-clause-aok-p clause))))
+		   nil)
+	       binds)
+       nforms
+       (append (if safety `((ignore ,safety)) nil) decls)))))
 
 (defun regular-binds (name form)
   `((,name (car ,form))))

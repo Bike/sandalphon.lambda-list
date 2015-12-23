@@ -1,6 +1,7 @@
 (in-package #:sandalphon.lambda-list)
 
-(defun parse-lambda-list (lambda-list grammar-spec &key safe)
+(defun parse-lambda-list (lambda-list grammar-spec
+			  &rest initargs &key (safe t))
   "Given a lambda list, initargs for it, and a grammar specification, returns a LAMBDA-LIST object.
 A grammar specification is a list of clause specifications. A clause specification is either a class specifier, or a list (class-specifier &key).
 The grammar specification is simply based on clauses earlier in the list having to occur before clauses later in the list. All clauses are considered optional. 
@@ -9,10 +10,11 @@ Certain keys have special meanings to the grammar itself. These are removed befo
 * :DATA-DESTRUCTURE indicates that a dotted list indicates this kind of clause. E.g., in parsing (foo bar . baz), if there was a &rest clause in the grammar with :DATA-DESTRUCTURE, the result would be the same as from (foo bar &rest baz).
 * :ANYWHERE indicates that the position of this clause in the grammar is unimportant, and that this clause can be anywhere in the lambda list, except, for bad reasons, before the first clause. This is used for &environment clauses, which cannot be before &whole.
 
-The keys are arguments to the lambda-list creation that are not part of the grammar. Presently the only one is SAFE, controlling whether extra code is inserted to ensure conforming code and more helpful error messages.
+The keys are arguments to the lambda-list and clause creation that are not part of the grammar. Presently the only one is SAFE, controlling whether extra code is inserted to ensure conforming code and more helpful error messages.
 
 EXAMPLE: A lambda-list like an ordinary lambda-list but with keys having :no-value as a default if no default is explicitly given would have the grammar specification (REGULAR-CLAUSE OPTIONAL-CLAUSE REST-CLAUSE (KEY-CLAUSE :DEFAULT-DEFAULT :NO-VALUE) AUX-CLAUSE)."
-  (%parse-lambda-list lambda-list (make-grammar grammar-spec)
+  (%parse-lambda-list lambda-list
+		      (apply #'make-grammar grammar-spec initargs)
 		      :safe safe))
 
 (defgeneric clause-parse (clause list lambda-list)
@@ -31,8 +33,10 @@ Specials are presently :DATA-DESTRUCTURE, :ANYWHERE."
        else collect key into clean and collect value into clean
        finally (return (values clean kws)))))
 
-(defun make-grammar (grammar-spec)
-  "Takes a grammar specification and makes it into a fresh \"grammar\", which is an internal thing passed to %parse-lambda-list that is full of clauses subject to side ffects."
+(defun make-grammar (grammar-spec &rest more-keys &key (safe t))
+  "Takes a grammar specification and makes it into a fresh \"grammar\", which is an internal thing passed to %parse-lambda-list that is full of clauses subject to side effects.
+MORE-KEYS is a plist of initialization arguments to all clauses."
+  (declare (ignore safe))
   (loop with blank = nil
      with anywhere = nil
      with data-destructure = nil
@@ -43,7 +47,8 @@ Specials are presently :DATA-DESTRUCTURE, :ANYWHERE."
 	       (multiple-value-call #'values (first thing)
 		       (grammar-clean-keywords (rest thing)))
 	       (values thing nil nil))
-	 (let ((obj (apply #'make-instance class cleaned)))
+	 (let ((obj (apply #'make-instance class
+			   (append cleaned more-keys))))
 	   (when (find :data-destructure kws)
 	     (if data-destructure
 		 (error "grammar spec ~a has multiple clauses with ~a"
@@ -62,7 +67,7 @@ Specials are presently :DATA-DESTRUCTURE, :ANYWHERE."
 		 (setf blank t)))
 	   (list (clause-keywords obj) obj kws)))))
 
-(defun %parse-lambda-list (llist grammar &rest initargs &key safe)
+(defun %parse-lambda-list (llist grammar &rest initargs &key (safe t))
   (declare (ignore safe))
   ;; grammar format = list of (ll-keywords object keywords)
   ;; keywords right now being :anywhere and :data-destructure
@@ -135,12 +140,15 @@ Specials are presently :DATA-DESTRUCTURE, :ANYWHERE."
 
 ;;; What follows are the parse methods for standard clauses.
 
-(defun parse-destructure (llist grammar-name)
-  "Helper function for destructuring parameters. Given a maybe-lambda list and the name of a grammar, parses."
-  (if (symbolp llist)
-      llist
-      (%parse-lambda-list llist
-			  (make-grammar (symbol-value grammar-name)))))
+(defun parse-destructure (clause llist grammar-name)
+  "Helper function for destructuring parameters. Given a clause to take initargs from, something that's maybe a lambda list, and the name of a grammar, parses."
+  (let ((safety (clause-safe clause)))
+    (if (symbolp llist)
+	llist
+	(%parse-lambda-list
+	 llist
+	 (make-grammar (symbol-value grammar-name) :safe safety)
+	 :safe safety))))
 
 (declaim (inline make-key))
 (defun make-key (symbol)
@@ -237,7 +245,8 @@ Specials are presently :DATA-DESTRUCTURE, :ANYWHERE."
 (defmethod multiple-clause-parse ((clause destructuring-regular-clause)
 				  spec llist)
   (cond ((not (symbolp spec))
-	 (parse-destructure spec (destructuring-clause-grammar clause)))
+	 (parse-destructure clause spec
+			    (destructuring-clause-grammar clause)))
 	((find spec (lambda-list-keywords llist)) nil)
 	(t spec)))
 
@@ -264,7 +273,7 @@ Specials are presently :DATA-DESTRUCTURE, :ANYWHERE."
 			      -p)
 	     spec
 	   (list (parse-destructure
-		  var (destructuring-clause-grammar clause))
+		  clause var (destructuring-clause-grammar clause))
 		 default -p)))
 	((not (symbolp spec)) (error "~a is not a valid &optional spec"
 				     spec))
@@ -313,7 +322,8 @@ Specials are presently :DATA-DESTRUCTURE, :ANYWHERE."
 	     spec
 	   ;; this is the only case that can actually destructure.
 	   (list (list key (parse-destructure
-			    var (destructuring-clause-grammar clause))
+			    clause var
+			    (destructuring-clause-grammar clause))
 		       default -p))))
 	(t (destructuring-bind (var
 				&optional

@@ -2,7 +2,14 @@
 
 ;;;; BINDS
 
-(defun gen-binds (llist &rest forms)
+(defun generate-let* (llist body &rest forms)
+  (multiple-value-bind (binds decls)
+      (apply #'generate-bindings llist forms)
+    `(let* ,binds ,@decls ,@body)))
+
+;; This here is the most basic binding-generation function that
+;;  the others are defined in terms of.
+(defun generate-bindings (llist &rest forms)
   (loop with safe = (if (lambda-list-safe llist)
 			(gensym "SAFETY")
 			nil)
@@ -17,6 +24,8 @@
 		forms new-forms
 		declares (append declares new-declares)))
      finally (return (values binds declares))))
+
+;;; Internal interface
 
 ;; return (values binds new-forms declares)
 (defgeneric clause-binds (clause forms))
@@ -33,7 +42,7 @@
 	    `((ignorable ,mapped)))))
 
 (defmethod clause-binds ((clause environment-clause) forms)
-  (values `((,(clause-spec clause) ,(second forms)))) forms nil)
+  (values `((,(clause-spec clause) ,(second forms))) forms nil))
 
 (defmethod clause-binds ((clause multiple-clause) forms)
   (loop with binds = nil
@@ -87,7 +96,7 @@
 	      nil)
       (let ((sym (gensym "DESTRUCTURE")))
 	(multiple-value-bind (r-binds r-decls)
-	    (apply #'gen-binds spec sym (rest forms))
+	    (apply #'generate-bindings spec sym (rest forms))
 	  (values
 	   (append (regular-binds sym (first forms)) r-binds)
 	   (cons (list 'cdr (first forms)) (rest forms))
@@ -114,7 +123,7 @@
 		nil)
 	(let ((sym (gensym "DESTRUCTURE")))
 	  (multiple-value-bind (r-binds r-decls)
-	      (apply #'gen-binds var sym (rest forms))
+	      (apply #'generate-bindings var sym (rest forms))
 	    (values
 	     (append (optional-binds sym (or -p (gensym "PROVIDED-P"))
 				     default (first forms))
@@ -153,7 +162,7 @@
 		  nil)
 	  (let ((sym (gensym "DESTRUCTURE")))
 	    (multiple-value-bind (r-binds r-decls)
-		(apply #'gen-binds var sym (rest forms))
+		(apply #'generate-bindings var sym (rest forms))
 	      (values
 	       (append (key-binds key sym -p default (first forms))
 		       r-binds)

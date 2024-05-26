@@ -1,3 +1,15 @@
+Beware
+======
+
+This project is no longer updated. If you need to parse lambda lists, consider a few alternatives:
+
+* [Alexandria](https://gitlab.common-lisp.net/alexandria/alexandria)'s `parse-ordinary-lambda-list`
+* [Ecclesia](https://github.com/s-expressionists/Ecclesia) has various parsers
+* [CST](https://github.com/s-expressionists/Concrete-syntax-tree) can parse lambda lists while keeping track of source locations
+
+Original documentation
+======================
+
 This is a library for manipulating and using general Common Lisp lambda lists. Unlike other utilities, such as ALEXANDRIA:PARSE-ORDINARY-LAMBDA-LIST, this library is general and beefy enough to handle all the different types of lambda lists listed in section 3.4 of the standard. It also allows defining your own grammars, clause types, etc.
 
 The two basic components of this library are _parsing_ and _binding generation_. Parsing turns a lambda list, like (a b &key c d), and a grammar for lambda lists into an object of class LAMBDA-LIST. Binding generation takes such an object and a series of forms, and returns a series of bindings and declarations suitable for CL:LET* that implement the lambda list binding to the values of those forms.
